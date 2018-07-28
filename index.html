@@ -31,8 +31,11 @@
     data: {
       title: ''
     },
+    beforeFetchData: function() {
+      console.log("model:beforeFetchData")
+    },
     afterReady: function() {
-      
+      console.log("model:afterReady")
     },
     listeners: {
 
@@ -43,7 +46,19 @@
     $model: model,
     $el: "#view",
     template: $("#viewTpl").html(),
-    autoRender: true
+    autoRender: true,
+    beforeCreate: function() {
+      console.log("view:beforeCreate")
+    },
+    created: function() {
+      console.log("view:created")
+    },
+    beforeRender: function() {
+      console.log("view:beforeRender")
+    },
+    rendered: function() {
+      console.log("view:rendered")
+    }
   })
 
   model.set("title", "动漫主角", true);

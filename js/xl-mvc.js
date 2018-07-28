@@ -724,11 +724,8 @@
        * model的data属性，内部使用
        */
       _data: {},
-      _prevData: {}, // 用于检查model的值是否改变
       callbacks: [],
-      status: FULFILLED,
-      // 将后台数据属性映射为model的属性
-      mapData: {}, 
+      status: FULFILLED, 
       /**
        * 监听事件
        */
@@ -805,9 +802,9 @@
       reset: function() {
         var data = this._data;
         this._data = {}
-        for(var prop in data) {
+        _.each(data, function(self, key) {
           delete this[prop];
-        }
+        })
       },
       resetParams: function(params) {
         this.reset();
@@ -851,6 +848,7 @@
           this.url = XL._generateUrl(this._rootUrl, this.params);
         }
         this.status = PENDING;
+        instance.beforeFetchData && instance.beforeFetchData()
         XL.ajax({
           url: this.url,
           type: this.type,
@@ -875,6 +873,7 @@
           this.url = XL._generateUrl(this._rootUrl, this.params);
         }
         instance.status = PENDING;
+        instance.beforeFetchData && instance.beforeFetchData()
         XL.ajax({
           url: this.url,
           type: this.type,
@@ -927,6 +926,11 @@
       // 同时model的_data属性也备份一份
       XL._extend(instance._data, data);
     }
+
+    // 生命周期beforeFetchData
+    if(obj.beforeFetchData && obj.beforeFetchData instanceof Function) {
+      instance.beforeFetchData = obj.beforeFetchData
+    }
     
     if(obj.url) {
       instance.url = obj.url;
@@ -954,6 +958,7 @@
     if(obj.afterReady && obj.afterReady instanceof Function) {
       instance.on("afterReady", obj.afterReady.bind(instance))
     }
+
     return instance;
   }
   /*****************************Model end*******************************/
