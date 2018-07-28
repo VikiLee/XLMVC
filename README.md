@@ -12,7 +12,6 @@
 [TOCM]
 
 [TOC]
-
 # model
 ## 初始化
 通过XM.create方法初始化
