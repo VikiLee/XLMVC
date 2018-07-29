@@ -56,11 +56,20 @@ methods: {
 }
 ```
 ### listeners
-object类型，不管是model还是view，都支持事件，listeners设置自定义事件，key为事件名，function为事件处理函数。eg:
+object类型，不管是model还是view，都支持事件，listeners设置自定义事件，key-function对，key为事件名，function为事件处理函数。eg:
 ```
 listeners: {
 	eventName1: function() {
 		// your event handle code
+	}
+}
+```
+### watch
+object类型，监听属性的变化，key-function对，key为属性名，function为当属性变化时执行的回调函数。回调的第一个参数是新值，第二个参数是旧值。eg:
+```
+watch: {
+	title: function(newVal, oldVal) {
+		// your code
 	}
 }
 ```

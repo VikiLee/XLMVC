@@ -377,8 +377,8 @@
    */
   XL._formatParams = function (data) {
     var arr = [];
-    each(data, function(d, key) {
-      arr.push(encodeURIComponent(key) + "=" + encodeURIComponent(data[key]));
+    _.each(data, function(value, key) {
+      arr.push(encodeURIComponent(key) + "=" + encodeURIComponent(value));
     })
     // for (var name in data) {
     //   arr.push(encodeURIComponent(name) + "=" + encodeURIComponent(data[name]));
@@ -724,6 +724,14 @@
        * model的data属性，内部使用
        */
       _data: {},
+      watch: {}, // 监听属性变化
+      _invokeWatchCallback: function(attr, value) {
+        // 如果有监听属性值的改变
+        if(this[attr] !== value && attr in this.watch) {
+          var watchCallback = this.watch[attr].bind(this);
+          watchCallback(value, this[attr])
+        }
+      },
       callbacks: [],
       status: FULFILLED, 
       /**
@@ -753,23 +761,37 @@
       _setData: function(attr, value, ifRender){
         var preMd5 = MD5(this._data);
         // set的是整个对象
+        var isSetObj = false;
         if(XL.isPlainObject(attr)) {
           ifRender = value || false;
           value = attr;
+          isSetObj = true;
         }
-        if (XL.isPlainObject(value)) {
-          // 如果set的第一个参数是对象
-          XL._extend(this[attr], value);
-          XL._extend(this._data[attr], value);
+        var self = this;
+        if(isSetObj) {
+          // 第一个参数是object的情况
+          // 监听属性变化并执行回调
+          _.each(value, function(v, k) {
+            self._invokeWatchCallback(k, v);
+          })
+          XL._extend(this, value);
+          XL._extend(this._data, value);
         } else {
-          // 如果set的是单个键值对
-          this[attr] = value;
-          this._data[attr] = value;
+          // 监听属性变化并执行回调
+          this._invokeWatchCallback(attr, value);
+          if (XL.isPlainObject(value)) {
+            // 如果set的第一个参数是对象
+            XL._extend(this[attr], value);
+            XL._extend(this._data[attr], value);
+          } else {
+            // 如果set的是单个键值对
+            this[attr] = value;
+            this._data[attr] = value;
+          }
         }
-        var nowMd5 = MD5(this._data);
         // 值没改变的情况下才render
+        var nowMd5 = MD5(this._data);
         if(preMd5 !== nowMd5 && ifRender) {
-          console.log(1)
            this.trigger("render");
         }
       
@@ -802,7 +824,7 @@
       reset: function() {
         var data = this._data;
         this._data = {}
-        _.each(data, function(self, key) {
+        _.each(data, function(value, prop) {
           delete this[prop];
         })
       },
@@ -948,10 +970,19 @@
     if (obj.listeners) {
       if (XL.isPlainObject(obj.listeners)) {
         var listeners = obj.listeners;
-        _.each(listeners, function(self, eventName) {
-          instance.on(eventName, listeners[eventName]);
+        _.each(listeners, function(listener, eventName) {
+          instance.on(eventName, listener);
         })
       }
+    }
+
+    // 监听属性值变化
+    if(obj.watch && XL.isPlainObject(obj.watch)) {
+      _.each(obj.watch, function(callback, key, self) {
+        if(typeof callback === "function") {
+          instance.watch[key] = callback
+        }
+      })
     }
 
     // 生命周期
@@ -1059,10 +1090,9 @@
     // events
     var events = obj.events;
     if (events && XL.isPlainObject(events)) {
-      _.each(events, function(self, event_element) {
+      _.each(events, function(callback, event_element) {
         var type = event_element.split(/\s+/)[0].split(/:/).join(" ");
         var element = event_element.split(/\s+/)[1] || instance.$el;
-        var callback = events[event_element];
         if(!instance[callback]) {
           throw new Error("there is no method called " + callback);
           return;
@@ -1120,8 +1150,8 @@
     // 监听事件 events
     var listeners = obj.listeners;
     if (listeners && XL.isPlainObject(listeners)) {
-      _.each(listeners, function(self, eventName) {
-        XEvent.on(instance.$model.id + ":" + eventName, listeners[eventName].bind(instance, event));
+      _.each(listeners, function(callback, eventName) {
+        XEvent.on(instance.$model.id + ":" + eventName, callback.bind(instance, event));
       })
     }
 
