@@ -40,7 +40,7 @@ var model = XM.create({
 ### data：Object
 data属性是该model对应的数据，建议先定义好，并设置好默认值，如上面的代码的title
 ### url: String
-如果你想要让你的mode的data来源于后台，则需要配置url，配置好url后，会自动拉取改url对应的数据并将response的data属性对应的值添加到data属性当中
+如果你想要让你的mode的data来源于后台，则需要配置url，配置好url后，会自动拉取该url对应的数据并将response的data属性对应的值添加到data属性当中
 ### type: String
 默认值是GET，如果你的url和当前的域名不一致，请求数据会有跨域问题，此时需要将type的值设置为jsonp。
 ### params: Object
@@ -82,8 +82,8 @@ watch: {
 model.get('title') // xxx 等同于model.title
 ```
 ### set(attribute, [value|ifRender], [ifRender])
-通过set方法可以设置model的data值。attribute可以是简单的值，也可以是object，当attribute可以是简单的值的时候value是属性对应的值。当attribute是object的时候，value是ifRender。
-ifRender表示设置为true的话，model对应的view会重新渲染，所以建议如果有频繁修改多个attribute切ifRender为true的时候，请使用下面第二种方式设置。eg:
+通过set方法可以设置model的data值。attribute可以是简单的值，也可以是object，当attribute是简单的值的时候value是属性对应的值。当attribute是object的时候，value是ifRender。
+ifRender表示设置为true的话，model对应的view会重新渲染，所以建议如果有频繁修改多个attribute且ifRender为true的时候，请使用下面第二种方式设置。eg:
 ```
 // 设置data的某个attribute的值
 model1.set('title', 'xxx')
@@ -131,15 +131,11 @@ view需要渲染的dom元素的选择器，会将该view渲染到该dom下
 view对应的model，view渲染的数据来源于该model
 ### autoRender: boolean
 该属性定义了在model拉取完接口数据后要不要自动渲染到Dom当中，默认是false
-### methods: Object
-同model的的methods，不同的地方在于
-### listeners: Object
-同model的listeners
 ### events: Object
-该属性以键值对的方式指定dom事件以及事件处理函数， eg:
+该属性以键值对的方式指定dom事件以及事件处理函数，事件处理函数需要在methods属性定义，参考下面的methods方法。 eg:
 ```
 events: {
-	"click #id": "handler"
+	"click #id": "handleClick"
 }
 ```
 其中key必须用字符串包起来，以domEvent<space>selector的格式定义，value是methods属性指定的一个方法。
@@ -149,7 +145,18 @@ events: {
 	"input:propertychange #id": "inputChange"
 }
 ```
-##方法
+### methods: Object
+同model的的methods，不同的地方在于methods的回调函数是通过events里面指定的回调函数时，回调函数的第一个参数会是HTMLDOM的event对象。eg:  
+```
+methods: {
+  handleClick: function(event) {
+    // your handle code goes here
+  }
+}
+```
+### listeners: Object
+同model的listeners
+## 方法
 ### on(event, callback)
 view监听事件，在 view 上绑定一个callback回调函数。 只要event触发，该回调函数就会调用，并且回调函数的this绑定为该view。
 该函数和listeners设置的事件可以达到相同的效果，两者皆可以监听事件。
@@ -167,3 +174,4 @@ view初始化前调用
 view调用render前调用
 ### rendered()
 当view渲染完视图时调用
+# 后续更新
