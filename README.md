@@ -41,6 +41,8 @@ var model = XM.create({
 data属性是该model对应的数据，建议先定义好，并设置好默认值，如上面的代码的title
 ### url: String
 如果你想要让你的mode的data来源于后台，则需要配置url，配置好url后，会自动拉取改url对应的数据并将response的data属性对应的值添加到data属性当中
+### type: String
+默认值是GET，如果你的url和当前的域名不一致，请求数据会有跨域问题，此时需要将type的值设置为jsonp。
 ### params: Object
 object类型，如果url当中需要带参数，则可以设置该值，框架会将其转为字符串并添加到url的查询参数当中
 ### methods: Object
