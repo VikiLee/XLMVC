@@ -17,10 +17,12 @@
     <% _.each(list, function(item) { %>
       <li><%=item.name%></li>
     <% }) %>
+    <button id="btn">按钮1</button>
+    <button id="btn2">按钮2</button>
     </ul>
   </script>
 </body>
-<script src="js/jquery.min.js"></script>
+<!-- <script src="js/jquery.min.js"></script> -->
 <script src="js/xl-mvc.js"></script>
 <script>
   var model = XM.create({
@@ -50,8 +52,11 @@
   var view = XV.create({
     $model: model,
     $el: "#view",
-    template: $("#viewTpl").html(),
+    template: document.getElementById("viewTpl").innerHTML,
     autoRender: true,
+    events: {
+      "click #btn": "handleClick"
+    },
     beforeCreate: function() {
       console.log("view:beforeCreate")
     },
@@ -63,6 +68,11 @@
     },
     rendered: function() {
       console.log("view:rendered")
+    },
+    methods: {
+      handleClick: function() {
+        alert('click');
+      }
     }
   })
 

@@ -453,7 +453,7 @@
     if (window.XMLHttpRequest) {
       requestObj = new XMLHttpRequest();
     } else {
-      requestObj = new ActiveXObject;
+      requestObj = new ActiveXObject("Microsoft.XMLHTTP");
     }
 
     var sendData = "";
@@ -468,7 +468,8 @@
     requestObj.onreadystatechange = function () {
       if (requestObj.readyState == 4) {
         if (requestObj.status == 200) {
-          var obj = requestObj.response
+          // IE9下response为undefined
+          var obj = requestObj.response || requestObj.responseText;
           if (typeof obj !== "object") {
             obj = JSON.parse(obj);
           }
@@ -598,7 +599,8 @@
       cancelBtn: '.pop_cancal',
       cancelTxt: "取消",
       handleOk: function(){},
-      handleCancel: function() {}
+      handleCancel: function() {},
+      $model: null
     };
     if(!option.id) {
       throw new Error("id attribute is required");
@@ -613,10 +615,11 @@
     this.cancelBtn = defaultOption.cancelBtn.replace(/\./, "");
     this.handleCancel = defaultOption.handleCancel;
     this.handleOk = defaultOption.handleOk;
+    this.$model = defaultOption.$model
   }
 
   // 监听modal点击事件，初始化和当modal里面的html改变的时候调用
-  XL.Modal.prototype._listenOrrelisten = function() {
+  XL.Modal.prototype._listenOrRelisten = function() {
     var $el = document.querySelector("#" + this.id);
     var _this = this;
     XL.EventUtil.off($el, "click");
@@ -652,7 +655,7 @@
       this.$parent.$model.set("isShow", true);
     } else {
       // 显示的时候才去监听事件，1：
-      this._listenOrrelisten();
+      this._listenOrRelisten();
       var el = document.querySelector("#" + this.id);
       el && (el.style.display = "block");
     }
@@ -1033,7 +1036,8 @@
       _beforeRender: function() {
         this.$model._data.status = this.$model.status;
         var html = this.template(this.$model._data);
-        $(this.$el).html(html);
+        document.querySelector(this.$el).innerHTML = html;
+        // $(this.$el).html(html);
       },
       /**
        * 渲染该view挂载的dom
@@ -1092,13 +1096,18 @@
     if (events && XL.isPlainObject(events)) {
       _.each(events, function(callback, event_element) {
         var type = event_element.split(/\s+/)[0].split(/:/).join(" ");
-        var element = event_element.split(/\s+/)[1] || instance.$el;
+        var selector = event_element.split(/\s+/)[1] || instance.$el;
         if(!instance[callback]) {
           throw new Error("there is no method called " + callback);
           return;
         }
         // 监听事件，冒泡的方式
-        $("body").on(type, element, instance[callback].bind(instance));
+        XL.EventUtil.on(document.querySelector("body"), type, function(evt) {
+          if(evt.target === document.querySelector(selector)) {
+            instance[callback](evt);
+          }
+        });
+        // $("body").on(type, selector, instance[callback].bind(instance));
       })
     }
 
@@ -1120,7 +1129,8 @@
         this.beforeRender && this.beforeRender()
         var model = this.$model._data;
         var html = this.template(model);
-        $(this.$el).html(html);
+        document.querySelector(this.$el).innerHTML = html;
+        // $(this.$el).html(html);
         // 调用redered 生命函数
         this.rendered && this.rendered();
       }, 300, 300)
@@ -1135,7 +1145,7 @@
         instance.render();
         // 如果有弹窗，view重新渲染了后需要重新监听modal的事件
         if(instance.$modal) {
-          instance.$modal._listenOrrelisten();
+          instance.$modal._listenOrRelisten();
         }
       });
     } else {
