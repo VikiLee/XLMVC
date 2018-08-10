@@ -8,12 +8,15 @@
   opacity: .5;
   z-index: 100;
 }
-.pop {
-  padding: 50px 60px;
+.pop-wrapper {
   position: absolute;
   left: 50%;
   top: 50%;
   background: white;
   z-index: 101;
   transform: translate(-50%, -50%);
+}
+.pop-content {
+  padding: 50px 60px;
+  
 }

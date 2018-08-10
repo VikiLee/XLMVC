@@ -667,9 +667,13 @@
       this._listenOrRelisten();
       var el = document.querySelector("#" + this.id);
       if(this.$model) {
+        // 保存template
+        if(!this._template) {
+          this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        }
         var view = XV.create({
-          $el: el.querySelector(".pop"),
-          template:  el.querySelector(".pop-content").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+          $el: el.querySelector(".pop-content"),
+          template:  this._template,
           $model: this.$model
         })
         view.render();
