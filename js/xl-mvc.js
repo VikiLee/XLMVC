@@ -503,6 +503,15 @@
     return true;
   }
 
+  // 判断对象是否为DOM对象
+  XL.isDOM = ( typeof HTMLElement === 'object' ) ?
+    function(obj){
+        return obj instanceof HTMLElement;
+    } :
+    function(obj){
+        return obj && typeof obj === 'object' && obj.nodeType === 1 && typeof obj.nodeName === 'string';
+    }
+
   // jquery的extend方法简化版，只复制对象
   XL._extend = function () {
     // 有jquery的话直接使用jquery的
@@ -657,6 +666,14 @@
       // 显示的时候才去监听事件，1：
       this._listenOrRelisten();
       var el = document.querySelector("#" + this.id);
+      if(this.$model) {
+        var view = XV.create({
+          $el: el.querySelector(".pop"),
+          template:  el.querySelector(".pop-content").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+          $model: this.$model
+        })
+        view.render();
+      }
       el && (el.style.display = "block");
     }
   }
@@ -1002,7 +1019,7 @@
   XV.create = function (obj) {
     var instance = {
       /**
-       * view挂载的元素，选择器
+       * view挂载的元素，选择器/dom对象
        */
       $el: "",
       /**
@@ -1036,7 +1053,11 @@
       _beforeRender: function() {
         this.$model._data.status = this.$model.status;
         var html = this.template(this.$model._data);
-        document.querySelector(this.$el).innerHTML = html;
+        if(XL.isDOM(this.$el)) {
+          this.$el.innerHTML = html;
+        } else {
+          document.querySelector(this.$el).innerHTML = html;
+        }
         // $(this.$el).html(html);
       },
       /**
@@ -1129,7 +1150,11 @@
         this.beforeRender && this.beforeRender()
         var model = this.$model._data;
         var html = this.template(model);
-        document.querySelector(this.$el).innerHTML = html;
+        if(XL.isDOM(this.$el)) {
+          this.$el.innerHTML = html;
+        } else {
+          document.querySelector(this.$el).innerHTML = html;
+        }
         // $(this.$el).html(html);
         // 调用redered 生命函数
         this.rendered && this.rendered();

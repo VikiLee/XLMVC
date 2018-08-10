@@ -1,6 +1,6 @@
 ### 主要特性
 
-- 基于jquery的简易前端MVC框架，省去繁琐的DOM操作；
+- 简易前端MVC框架，省去繁琐的DOM操作；
 - 支持dom事件和自定义事件，且model和view之间的事件保持一致，即model监听的事件，预制相对于的view可以触发；
 - model支持后台获取数据，省去麻烦的ajax请求操作和繁琐的赋值操作
 - 通过函数节流的方式防止dom过于频繁修改；
@@ -123,8 +123,8 @@ var view = XV.create({
   })
 ```
 ## 属性
-### $el: String 必填
-view需要渲染的dom元素的选择器，会将该view渲染到该dom下
+### $el: String|DOM 必填
+view需要渲染的dom元素的选择器/Dom对象，会将该view渲染到该dom下
 ### template: String 必填
 设置view对应的模板，是underscore语法的模板
 ### $model: model 必填

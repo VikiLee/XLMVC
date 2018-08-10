@@ -1,0 +1,19 @@
+.cover {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  background: black;
+  opacity: .5;
+  z-index: 100;
+}
+.pop {
+  padding: 50px 60px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: white;
+  z-index: 101;
+  transform: translate(-50%, -50%);
+}
