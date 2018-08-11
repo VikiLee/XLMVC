@@ -570,8 +570,8 @@
   }
 
   XL.throttle = function(fn, delay, mustRunDelay) {
-    var timer = null
-    var tStart
+    var timer = null;
+    var tStart;
     return function () {
       clearTimeout(timer)
       var context = this,
@@ -638,11 +638,13 @@
         _this.hide();
         _this.afterClose && _this.afterClose();
       } else if(XL.hasClass(target, _this.cancelBtn)) {//取消按钮
-        var ifClose = _this.handleCancel();
-        ifClose && _this.hide();
+        _this.handleCancel();
+        _this.afterClose && _this.afterClose();
+        // var ifClose = _this.handleCancel();
+        // ifClose && _this.hide();
       } else if(XL.hasClass(target, _this.okBtn)) {// 确定按钮
         var ifClose = _this.handleOk(target);
-        ifClose && _this.hide();
+        ifClose && _this.hide() && (_this.afterClose && _this.afterClose());
       }
     });
   } 
@@ -672,7 +674,7 @@
           this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
         }
         var view = XV.create({
-          $el: el.querySelector(".pop-content"),
+          $el: el.querySelector(".pop-container"),
           template:  this._template,
           $model: this.$model
         })
