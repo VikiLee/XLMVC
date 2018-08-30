@@ -39,3 +39,17 @@
   float: right;
   cursor: pointer;
 }
+
+.wrapper {
+  width: 200px;
+  height: 200px;
+  display: table-cell;
+  vertical-align: middle;
+  background: green;
+}
+
+.wrapper .inner {
+  width: 100px;
+  height: 100px;
+  background: blue;
+}

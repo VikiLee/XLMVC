@@ -348,20 +348,23 @@
 
   XL.EventUtil = {
     on: function (element, type, callback) {
-      element.callback = callback;
+      // 保存事件处理函数 在解绑事件的时候获取 IE8的dom自定义属性只能通过setAttribute的方式设置
+      element.setAttribute("callback", callback);
       if (element.addEventListener) {
-        element.addEventListener(type, element.callback, false);
+        element.addEventListener(type, callback, false);
       } else if (element.attachEvent) {
-        element.attachEvent("on" + type, element.callback);
+        element.attachEvent("on" + type, callback);
       } else {
-        element["on" + type] = element.callback;
+        element["on" + type] = callback;
       }
     },
     off: function (element, type) {
+      // 获取事件处理函数
+      var callback =  element.getAttribute("callback");
       if (element.addEventListener) {
-        element.removeEventListener(type, element.callback, false);
+        element.removeEventListener(type, callback, false);
       } else if (element.detachEvent) {
-        element.detachEvent("on" + type, element.callback);
+        element.detachEvent("on" + type, callback);
       } else {
         element["on" + type] = null;
       }
@@ -1129,8 +1132,8 @@
           return;
         }
         // 监听事件，冒泡的方式
-        XL.EventUtil.on(document.querySelector("body"), type, function(evt) {
-          if(evt.target === document.querySelector(selector)) {
+        XL.EventUtil.on(document.querySelector(obj.$el), type, function(evt) {
+          if(XL.EventUtil.getTarget(evt) === document.querySelector(selector)) {
             instance[callback](evt);
           }
         });
