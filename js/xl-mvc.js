@@ -192,20 +192,23 @@
 
   XL.EventUtil = {
     on: function (element, type, callback) {
-      element.callback = callback;
+      // 保存事件处理函数 在解绑事件的时候获取 IE8的dom自定义属性只能通过setAttribute的方式设置
+      element.setAttribute("callback", callback);
       if (element.addEventListener) {
-        element.addEventListener(type, element.callback, false);
+        element.addEventListener(type, callback, false);
       } else if (element.attachEvent) {
-        element.attachEvent("on" + type, element.callback);
+        element.attachEvent("on" + type, callback);
       } else {
-        element["on" + type] = element.callback;
+        element["on" + type] = callback;
       }
     },
     off: function (element, type) {
+      // 获取事件处理函数
+      var callback =  element.getAttribute("callback");
       if (element.addEventListener) {
-        element.removeEventListener(type, element.callback, false);
+        element.removeEventListener(type, callback, false);
       } else if (element.detachEvent) {
-        element.detachEvent("on" + type, element.callback);
+        element.detachEvent("on" + type, callback);
       } else {
         element["on" + type] = null;
       }
@@ -482,11 +485,13 @@
         _this.hide();
         _this.afterClose && _this.afterClose();
       } else if(XL.hasClass(target, _this.cancelBtn)) {//取消按钮
-        var ifClose = _this.handleCancel();
-        ifClose && _this.hide();
+        _this.handleCancel();
+        _this.afterClose && _this.afterClose();
+        // var ifClose = _this.handleCancel();
+        // ifClose && _this.hide();
       } else if(XL.hasClass(target, _this.okBtn)) {// 确定按钮
         var ifClose = _this.handleOk(target);
-        ifClose && _this.hide();
+        ifClose && _this.hide() && (_this.afterClose && _this.afterClose());
       }
     });
   } 
@@ -516,7 +521,7 @@
           this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
         }
         var view = XV.create({
-          $el: el.querySelector(".pop-content"),
+          $el: el.querySelector(".pop-container"),
           template:  this._template,
           $model: this.$model
         })
@@ -971,8 +976,8 @@
           return;
         }
         // 监听事件，冒泡的方式
-        XL.EventUtil.on(document.querySelector("body"), type, function(evt) {
-          if(evt.target === document.querySelector(selector)) {
+        XL.EventUtil.on(document.querySelector(obj.$el), type, function(evt) {
+          if(XL.EventUtil.getTarget(evt) === document.querySelector(selector)) {
             instance[callback](evt);
           }
         });

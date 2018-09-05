@@ -174,4 +174,60 @@ view初始化前调用
 view调用render前调用
 ### rendered()
 当view渲染完视图时调用
+# XEvent
+XEvent可用于监听以及触发全局事件，能够跨view和model实现事件的监听和触发
+## 监听全局事件 XEvent.on(event, [handler([*args])])
+这样就可以监听event事件了，eg：
+```
+XEvent.on('eventName', function(){
+  // your code goes here
+})
+```
+## 触发全局事件 XEvent.emit(event, [*args])
+这样就可以监听event事件了，eg：
+```
+XEvent.emit('eventName', arg1, arg2, ....);
+```
+# Modal模态框
+模态框在开发中经常使用到，可以通过XL.Modal来轻松地实现一个模态框的显示和关闭，以及关闭后或者点击确定后执行的回调。  
+如果希望模态框里面的内容是动态的，初始化的时候设置$model属性，且需要按照下面约定设置模态框DOM结构。
+## DOM结构约定
+模态框的最外层的元素id属性必须有设置，模态框容器必须含有类名pop-container，如果你希望你的模态框内容是动态的，需要在pop-container下包含类型为pop-template的元素，pop-template元素下为underscore的模板语法。eg:
+```
+<!--最外层，id设置为pop-->
+<div style="display: none" class="pop-wrapper" id="pop">
+    <!--罩层-->
+    <div class="cover"></div>
+    <!--模态框容器，必须有类名pop-contaner-->
+    <div class="pop-container">
+      <!--动态内容模态框，需要有类名pop-template，里面有underscore模板语法-->
+      <div class="pop-template">
+        <span class="pop-close">×</span>
+        <h3><%=title%></h3>
+        <div class="pop-content">
+          <%=content%>
+        </div>
+      </div>
+    </div>
+  </div>
+```
+## 初始化
+通过new XL.Modal(option)的方式进行初始化，option包含以下属性：
+### id: String 必填
+模态框元素的id，等于模态框DOM结构最外层设置的id属性
+### closeBtn: String 
+选择器，指定选择器对应的元素被点击的时候模态框关闭
+### okBtn: String
+选择器，指定用户点击“确定”按钮的元素
+### handleOk: function
+用户点击ok按钮后的回调，如果想要模态框在点击“确定”后关闭，请在该回调中返回值false
+### cancelBtn: String
+选择器，指定用户点击“取消”按钮的元素
+### handleCancel: function
+用户点击取消后的回调。
+### afterClose: function
+模态框关闭后执行的回调。
+### $model: Model对象
+如果想要让模态框支持动态内容显示，设置该属性。在DOM结构中的pop-tempate里面设置相应的模板。
+
 # 后续更新

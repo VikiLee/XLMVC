@@ -1,3 +1,16 @@
+.clearfix {
+  zoom: 1;
+}
+
+.clearfix::after {
+  display: inline-block;
+  content: "";
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  clear: both;
+}
+
 .cover {
   position: fixed;
   left: 0;
@@ -8,15 +21,35 @@
   opacity: .5;
   z-index: 100;
 }
-.pop-wrapper {
+.pop-container {
   position: absolute;
   left: 50%;
   top: 50%;
   background: white;
   z-index: 101;
   transform: translate(-50%, -50%);
+  text-align: center;
 }
+
 .pop-content {
-  padding: 50px 60px;
-  
+  width: 100px;
+    height: 150px;
+}
+.pop-close {
+  float: right;
+  cursor: pointer;
+}
+
+.wrapper {
+  width: 200px;
+  height: 200px;
+  display: table-cell;
+  vertical-align: middle;
+  background: green;
+}
+
+.wrapper .inner {
+  width: 100px;
+  height: 100px;
+  background: blue;
 }
