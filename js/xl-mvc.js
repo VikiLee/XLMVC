@@ -205,12 +205,14 @@
     off: function (element, type) {
       // 获取事件处理函数
       var callback =  element.getAttribute("callback");
-      if (element.addEventListener) {
-        element.removeEventListener(type, callback, false);
-      } else if (element.detachEvent) {
-        element.detachEvent("on" + type, callback);
-      } else {
-        element["on" + type] = null;
+      if(typeof callback === "function") {
+        if (element.addEventListener) {
+          element.removeEventListener(type, callback, false);
+        } else if (element.detachEvent) {
+          element.detachEvent("on" + type, callback);
+        } else {
+          element["on" + type] = null;
+        }
       }
     },
     getTarget: function(evt) {
@@ -454,6 +456,8 @@
       okBtnTxt: '确定',
       cancelBtn: '.pop_cancal',
       cancelTxt: "取消",
+      beforeShow: function() {}, // show之前的钩子函数
+      beforeHide: function() {}, // hide之前的钩子函数
       handleOk: function(){},
       handleCancel: function() {},
       $model: null
@@ -465,18 +469,65 @@
     XL._extend(defaultOption, option);
     var _this = this;
     this.id = defaultOption.id;
+    this.$el = document.querySelector("#" + this.id);
+    this.callbacks = [];
+    this.beforeShow = defaultOption.beforeShow;
+    this.beforeHide = defaultOption.beforeHide;
     this.closeBtn = defaultOption.closeBtn.replace(/\./, "");
     this.afterClose = defaultOption.afterClose;
     this.okBtn = defaultOption.okBtn.replace(/\./, "");
     this.cancelBtn = defaultOption.cancelBtn.replace(/\./, "");
     this.handleCancel = defaultOption.handleCancel;
     this.handleOk = defaultOption.handleOk;
-    this.$model = defaultOption.$model
+    // 关联model和modal
+    option.$model && (this.$model = option.$model);
+    if(this.$model) {
+      this.$model.$modal = this; 
+    }
+    // 自定义show和hide
+    defaultOption.hide && (this.hide = defaultOption.hide);
+    defaultOption.show && (this.show = defaultOption.show);
+    // 如果有methods对象，实现代理，直接挂到instance对象下
+    var methods = defaultOption.methods;
+    if (methods && XL.isPlainObject(methods)) {
+      XL._extend(this, methods);
+    }
+    // events
+    var events = defaultOption.events;
+    if (events && XL.isPlainObject(events)) {
+      _.each(events, function(callback, event_element) {
+         var type = event_element.split(/\s+/)[0].split(/:/).join(" ");
+         var selector = event_element.split(/\s+/)[1] || _this.$el;
+         if(!_this[callback]) {
+           throw new Error("there is no method called " + callback);
+           return;
+         }
+         // 监听事件，冒泡的方式
+         XL.EventUtil.on(_this.$el, type, function(evt) {
+           var target = XL.EventUtil.getTarget(evt);
+           var allEl = document.querySelectorAll(selector);
+           var isContains = false;
+           for(var i = 0; i < allEl.length; i++) {
+             if(allEl[i] === target || allEl[i].contains(target)) {
+               isContains = true;
+             }
+           }
+           if(isContains) {
+             var event = {
+               currentTarget: target,
+               target: evt.currentTarget
+             }
+             _this[callback](event);
+           }
+           
+         });
+       })
+     }
   }
 
   // 监听modal点击事件，初始化和当modal里面的html改变的时候调用
   XL.Modal.prototype._listenOrRelisten = function() {
-    var $el = document.querySelector("#" + this.id);
+    var $el = this.$el;
     var _this = this;
     XL.EventUtil.off($el, "click");
     XL.EventUtil.on($el, "click", function(evt) {
@@ -502,12 +553,14 @@
       this.$parent.$model.set("isShow", false);
     } else {
       var el = document.querySelector("#" + this.id);
+      this.beforeHide && this.beforeHide.bind(this)();
       el && (el.style.display = "none"); 
     }
   }
 
   XL.Modal.prototype.show = function(option) {
-    this.hide();
+    // 一次只显示一个modal，隐藏之前的modal
+    // this.hide(true);
     if(this.$parent) {
       this.$parent.showModal();
       this.$parent.$model.set("isShow", true);
@@ -516,17 +569,23 @@
       this._listenOrRelisten();
       var el = document.querySelector("#" + this.id);
       if(this.$model) {
-        // 保存template
-        if(!this._template) {
-          this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        if(this.$model.status === FULFILLED) {
+          // 保存template
+          if(!this._template) {
+            this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+          }
+          var view = XV.create({
+            $el: el.querySelector(".pop-container"),
+            template:  this._template,
+            $model: this.$model
+          })
+          view.render();
+        } else {
+          // 如果model数据还未准备好，则先放入队列中
+          this.callbacks.push(this.show);
         }
-        var view = XV.create({
-          $el: el.querySelector(".pop-container"),
-          template:  this._template,
-          $model: this.$model
-        })
-        view.render();
       }
+      this.beforeShow && this.beforeShow.bind(this)()
       el && (el.style.display = "block");
     }
   }
@@ -597,6 +656,7 @@
        * model的data属性，内部使用
        */
       _data: {},
+      _initData: {},
       watch: {}, // 监听属性变化
       _invokeWatchCallback: function(attr, value) {
         // 如果有监听属性值的改变
@@ -632,7 +692,7 @@
         });
       },
       _setData: function(attr, value, ifRender){
-        var preData = this._data;
+        var preData = JSON.stringify(this._data);
         // set的是整个对象
         var isSetObj = false;
         if(XL.isPlainObject(attr)) {
@@ -663,7 +723,7 @@
           }
         }
         // 值没改变的情况下才render
-        var nowData = this._data;
+        var nowData = JSON.stringify(this._data);
         if(!isEqual(preData, nowData) && ifRender) {
            this.trigger("render");
         }
@@ -692,6 +752,10 @@
             XL._extend(_this._data, otherModel._data);
             ifRender && this.trigger("render");
           });
+        } else {
+          XL._extend(_this, otherModel._data);
+          XL._extend(_this._data, otherModel._data);
+          ifRender && this.trigger("render");
         }
       },
       reset: function() {
@@ -716,6 +780,12 @@
           callback.call(this);
         }
         this.trigger("afterReady", this);
+        // 如果关联了modal且modal显示的时候数据还未准备好，则现在通知modal去show
+        if(this.$modal && this.$modal.callbacks.length > 0) {
+          for(var i = 0; i < this.$modal.callbacks.length; i++) {
+            this.$modal.callbacks[i].bind(this.$modal)();
+          }
+        }
       },
       /**
        * 数据准备后执行cb
@@ -774,9 +844,15 @@
           type: this.type,
           success: function (res) {
             if (res.data) {
-              XL._extend(_this, res.data);
-              // 同时model的_data和_prevData属性也备份一份
-              XL._extend(_this._data, res.data);
+              // 如果有自定义数据，则选择自定义数据格式
+              if(_this.dataFn) {
+                _this.dataFn(res.data)
+              } else {
+                XL._extend(_this, res.data);
+                // 同时model的_data和_prevData属性也备份一份
+                XL._extend(_this._data, res.data);
+              }
+              
               _this.status = FULFILLED;
               // 这个位置很重要，因为调用这个函数等于告诉view可以渲染了
               _this._onReadyData();
@@ -784,16 +860,18 @@
                 _this.trigger("render");
                 return;
               } 
-              // 获取数据后，通知视图更新
-              _this._autoRender && _this.trigger("render");
             } else {
               _this.status = REJECTED;
             }
+            // 获取数据后，通知视图更新
+            _this._autoRender && _this.trigger("render");
           }
         })
       },
       refresh: function(initData) {
         // this.reset();
+        this.reset();
+        XL._extend(this._data, this._initData);
         if (initData && XL.isPlainObject(initData)) {
           XL._extend(this, initData);
           // 同时model的_data属性也备份一份
@@ -814,12 +892,25 @@
       XL._extend(instance.params, obj.params);
     }
 
+    // 初始化数据
+    var initData = obj.initData
+    if(initData && XL.isPlainObject(initData)) {
+      XL._extend(instance, initData);
+      // 同时model的_data属性也备份一份
+      XL._extend(instance._initData, initData);
+      XL._extend(instance._data, initData);
+    }
+
     // 如果有data对象，实现代理，直接挂到instance对象下
     var data = obj.data;
-    if (data && XL.isPlainObject(data)) {
-      XL._extend(instance, data);
-      // 同时model的_data属性也备份一份
-      XL._extend(instance._data, data);
+    if (data) {
+      if(XL.isPlainObject(data)) {
+        XL._extend(instance, data);
+        // 同时model的_data属性也备份一份
+        XL._extend(instance._data, data);
+      } else if(typeof data === 'function') {
+        instance.dataFn = data.bind(instance)
+      }
     }
 
     // 生命周期beforeFetchData
@@ -905,7 +996,7 @@
       },
       _beforeRender: function() {
         this.$model._data.status = this.$model.status;
-        var html = this.template(this.$model._data);
+        var html = this._getTemplate(this.$model._data);
         if(XL.isDOM(this.$el)) {
           this.$el.innerHTML = html;
         } else {
@@ -944,7 +1035,14 @@
         }
       },
       init: function() {},
-      rendered: function() {}
+      rendered: function() {},
+      _getTemplate: function(data) {
+        if(typeof this.template !== 'function') {
+          return _.template(this.template)(data);
+        } else {
+          return this.template(data);
+        }
+      }
     };
 
     // 生命周期beforeCreate
@@ -977,9 +1075,22 @@
         }
         // 监听事件，冒泡的方式
         XL.EventUtil.on(document.querySelector(obj.$el), type, function(evt) {
-          if(XL.EventUtil.getTarget(evt) === document.querySelector(selector)) {
-            instance[callback](evt);
+          var target = XL.EventUtil.getTarget(evt);
+          var allEl = document.querySelectorAll(selector);
+          var isContains = false;
+          for(var i = 0; i < allEl.length; i++) {
+            if(allEl[i] === target || allEl[i].contains(target)) {
+              isContains = true;
+            }
           }
+          if(isContains) {
+            var event = {
+              currentTarget: target,
+              target: evt.currentTarget
+            }
+            instance[callback](event);
+          }
+          
         });
         // $("body").on(type, selector, instance[callback].bind(instance));
       })
@@ -989,11 +1100,7 @@
     if (!obj.template) {
       throw new Error("template attribute is required");
     } else {
-      if(typeof obj.template !== 'function') {
-        instance.template = _.template(obj.template);
-      } else {
-        instance.template = obj.template;
-      }
+      instance.template = obj.template;
     }
 
     // 通过函数节流的方式来渲染dom，避免性能浪费
@@ -1002,7 +1109,7 @@
         // console.log('执行：' + (++window.count));
         this.beforeRender && this.beforeRender()
         var model = this.$model._data;
-        var html = this.template(model);
+        var html = this._getTemplate(model);
         if(XL.isDOM(this.$el)) {
           this.$el.innerHTML = html;
         } else {
@@ -1097,4 +1204,3 @@
   window.XV = XV;
 
 })(window);
-
