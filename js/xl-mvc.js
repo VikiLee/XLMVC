@@ -164,7 +164,14 @@
     REJECTED = "rejected";
 
   
-  var XL = {};
+  var XL = {
+    _modals: [],
+    hideAll: function() {
+      for(var i in this.modals) {
+        this.modals[i].hide();
+      }
+    }
+  };
 
   /*****************************View begin*******************************/
 
@@ -194,7 +201,11 @@
     on: function (element, type, callback) {
       // 保存事件处理函数 在解绑事件的时候获取 IE8的dom自定义属性只能通过setAttribute的方式设置
       element.setAttribute("callback", callback);
+     
       if (element.addEventListener) {
+        if(type === "propertychange") {
+          type = "input";
+        }
         element.addEventListener(type, callback, false);
       } else if (element.attachEvent) {
         element.attachEvent("on" + type, callback);
@@ -202,9 +213,9 @@
         element["on" + type] = callback;
       }
     },
-    off: function (element, type) {
+    off: function (element, type, callback) {
       // 获取事件处理函数
-      var callback =  element.getAttribute("callback");
+      var callback = callback || element.getAttribute("callback");
       if(typeof callback === "function") {
         if (element.addEventListener) {
           element.removeEventListener(type, callback, false);
@@ -370,7 +381,7 @@
     var src, copyIsArray, copy, name, options, clone,
       target = arguments[0],    // target为arguments[0]
       i = 1,
-      length = arguments.length,
+      length =  typeof arguments[length - 1] === "boolean" ? arguments.length - 1 : arguments.length,
       deep = typeof arguments[length - 1] === "boolean" ? arguments[length - 1] : true;
 
     for (; i < length; i++) {
@@ -457,21 +468,32 @@
       cancelBtn: '.pop_cancal',
       cancelTxt: "取消",
       beforeShow: function() {}, // show之前的钩子函数
+      afterShow: function() {},
       beforeHide: function() {}, // hide之前的钩子函数
-      handleOk: function(){},
+      handleOk: function() {},
       handleCancel: function() {},
       $model: null
     };
     if(!option.id) {
       throw new Error("id attribute is required");
-      return;
     }
+     // 关联model和modal
+    option.$model && (this.$model = option.$model);
+    if(this.$model) {
+      this.$model.$modal = this; 
+      delete option['$model'];
+    }
+
+    XL._modals.push(this);
+
     XL._extend(defaultOption, option);
     var _this = this;
+    this._isShow = false;
     this.id = defaultOption.id;
     this.$el = document.querySelector("#" + this.id);
     this.callbacks = [];
     this.beforeShow = defaultOption.beforeShow;
+    this.afterShow = defaultOption.afterShow;
     this.beforeHide = defaultOption.beforeHide;
     this.closeBtn = defaultOption.closeBtn.replace(/\./, "");
     this.afterClose = defaultOption.afterClose;
@@ -479,11 +501,8 @@
     this.cancelBtn = defaultOption.cancelBtn.replace(/\./, "");
     this.handleCancel = defaultOption.handleCancel;
     this.handleOk = defaultOption.handleOk;
-    // 关联model和modal
-    option.$model && (this.$model = option.$model);
-    if(this.$model) {
-      this.$model.$modal = this; 
-    }
+    this.eventHandler = null;
+   
     // 自定义show和hide
     defaultOption.hide && (this.hide = defaultOption.hide);
     defaultOption.show && (this.show = defaultOption.show);
@@ -502,14 +521,15 @@
            throw new Error("there is no method called " + callback);
            return;
          }
-         // 监听事件，冒泡的方式
-         XL.EventUtil.on(_this.$el, type, function(evt) {
+        // 监听事件，冒泡的方式
+        XL.EventUtil.on(_this.$el, type, function(evt) {
            var target = XL.EventUtil.getTarget(evt);
            var allEl = document.querySelectorAll(selector);
            var isContains = false;
            for(var i = 0; i < allEl.length; i++) {
              if(allEl[i] === target || allEl[i].contains(target)) {
                isContains = true;
+               break;
              }
            }
            if(isContains) {
@@ -517,10 +537,10 @@
                currentTarget: target,
                target: evt.currentTarget
              }
-             _this[callback](event);
+             _this[callback](event, i >= 0 ? i : void 0);
            }
            
-         });
+        });
        })
      }
   }
@@ -529,8 +549,8 @@
   XL.Modal.prototype._listenOrRelisten = function() {
     var $el = this.$el;
     var _this = this;
-    XL.EventUtil.off($el, "click");
-    XL.EventUtil.on($el, "click", function(evt) {
+    this.eventHandler && XL.EventUtil.off($el, "click", _this.eventHandler);
+    _this.eventHandler = function(evt) {
       var target = XL.EventUtil.getTarget(evt);
       if(XL.hasClass(target, _this.closeBtn)) {// 关闭按钮
         _this.hide();
@@ -544,10 +564,12 @@
         var ifClose = _this.handleOk(target);
         ifClose && _this.hide() && (_this.afterClose && _this.afterClose());
       }
-    });
+    }
+    XL.EventUtil.on($el, "click", _this.eventHandler);
   } 
 
   XL.Modal.prototype.hide = function() {
+    if(!this._isShow) return;
     if(this.$parent) {
       this.$parent.hideModal();
       this.$parent.$model.set("isShow", false);
@@ -555,19 +577,26 @@
       var el = document.querySelector("#" + this.id);
       this.beforeHide && this.beforeHide.bind(this)();
       el && (el.style.display = "none"); 
+      this.afterClose && this.afterClose.bind(this)();
     }
   }
 
-  XL.Modal.prototype.show = function(option) {
+  XL.Modal.prototype.show = function() {
     // 一次只显示一个modal，隐藏之前的modal
     // this.hide(true);
+    this._isShow = true;
     if(this.$parent) {
       this.$parent.showModal();
       this.$parent.$model.set("isShow", true);
     } else {
       // 显示的时候才去监听事件，1：
       this._listenOrRelisten();
-      var el = document.querySelector("#" + this.id);
+      var el = document.querySelector("#" + this.id),
+        show = function() {
+          this.beforeShow && this.beforeShow.bind(this)()
+          el && (el.style.display = "block");
+          this.afterShow && this.afterShow.bind(this)()
+        };
       if(this.$model) {
         if(this.$model.status === FULFILLED) {
           // 保存template
@@ -580,14 +609,28 @@
             $model: this.$model
           })
           view.render();
+          show.bind(this)();
         } else {
           // 如果model数据还未准备好，则先放入队列中
           this.callbacks.push(this.show);
         }
+      } else {
+        show.bind(this)();
       }
-      this.beforeShow && this.beforeShow.bind(this)()
-      el && (el.style.display = "block");
     }
+  }
+
+  XL.Modal.prototype.update = function() {
+    var el = document.querySelector("#" + this.id);
+    if(!this._template) {
+      this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    }
+    var view = XV.create({
+      $el: el.querySelector(".pop-container"),
+      template:  this._template,
+      $model: this.$model
+    })
+    view.render();
   }
 
   XL.toast = function(option) {
@@ -725,7 +768,11 @@
         // 值没改变的情况下才render
         var nowData = JSON.stringify(this._data);
         if(!isEqual(preData, nowData) && ifRender) {
-           this.trigger("render");
+          this.trigger("render");
+          // 如果有和model关联的modal
+          if(this.$modal) {
+            this.$modal.update();
+          }
         }
       
       },
@@ -766,7 +813,7 @@
         })
       },
       resetParams: function(params) {
-        this.reset();
+        // this.reset();
         XL._extend(this.params, params);
         this.fetchData(true);
       },
@@ -862,6 +909,7 @@
               } 
             } else {
               _this.status = REJECTED;
+              _this.error && _this.error(res.code, res.msg);
             }
             // 获取数据后，通知视图更新
             _this._autoRender && _this.trigger("render");
@@ -913,16 +961,28 @@
       }
     }
 
+    // 不马上加载数据
+    if(obj.lazy) {
+      instance.lazy = true;
+    }
+
     // 生命周期beforeFetchData
     if(obj.beforeFetchData && obj.beforeFetchData instanceof Function) {
       instance.beforeFetchData = obj.beforeFetchData
     }
     
-    if(obj.url) {
-      instance.url = obj.url;
-      instance._rootUrl = obj.url;
-      instance.type = obj.type;
-      instance.fetchData();
+    var url = obj.url;
+    if(url) {
+      if(typeof url === 'string') {
+        instance.url = url;
+      } else if(typeof url === 'function') {
+        instance.url = url.bind(obj)();
+      }
+      if(instance.url && !instance.lazy) {
+        instance._rootUrl = instance.url;
+        instance.type = obj.type;
+        instance.fetchData();
+      }
     }
     // 如果有methods对象，实现代理，直接挂到instance对象下
     var methods = obj.methods;
@@ -1066,6 +1126,7 @@
     // events
     var events = obj.events;
     if (events && XL.isPlainObject(events)) {
+      var cannotBubbleTypes = ['blur', 'focus'];
       _.each(events, function(callback, event_element) {
         var type = event_element.split(/\s+/)[0].split(/:/).join(" ");
         var selector = event_element.split(/\s+/)[1] || instance.$el;
@@ -1073,14 +1134,28 @@
           throw new Error("there is no method called " + callback);
           return;
         }
+        // 无法冒泡的事件
+        if(cannotBubbleTypes.indexOf(type) > -1) {
+          setTimeout(() => {
+            XL.EventUtil.on(document.querySelector(selector), type, function(evt) {
+              var event = {
+                currentTarget: target,
+                target: evt.currentTarget
+              }
+              instance[callback](event, i >= 0 ? i : void 0);
+            })
+          }, 0);
+          return;
+        }
         // 监听事件，冒泡的方式
         XL.EventUtil.on(document.querySelector(obj.$el), type, function(evt) {
           var target = XL.EventUtil.getTarget(evt);
           var allEl = document.querySelectorAll(selector);
-          var isContains = false;
-          for(var i = 0; i < allEl.length; i++) {
+          var isContains = false, i = 0;
+          for(; i < allEl.length; i++) {
             if(allEl[i] === target || allEl[i].contains(target)) {
               isContains = true;
+              break;
             }
           }
           if(isContains) {
@@ -1088,7 +1163,7 @@
               currentTarget: target,
               target: evt.currentTarget
             }
-            instance[callback](event);
+            instance[callback](event, i >= 0 ? i : void 0);
           }
           
         });

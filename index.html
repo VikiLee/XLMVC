@@ -114,6 +114,36 @@
     id: "pop",
     closeBtn: ".pop-close"
   })
+
+  // jquery方式
+  // 渲染试图
+  $.ajax({
+    url: 'https://api.myjson.com/bins/13rplu',
+    dataType: 'jsonp',
+    success: function(res) {
+      var data = res.data;
+      var html = _.template('tpl')(data);
+      $("#id").html(html);
+    }
+  })
+  // 更新数据
+  data.title = '更新title'
+  _.template('tpl')(data);
+  $("#id").html(html);
+
+  // xl-mvc方式
+  // 渲染试图
+  var model = XM.create({
+    url: 'https://api.myjson.com/bins/13rplu',
+    type: 'jsonp'
+  })
+  var view = XV.create({
+    $model: model,
+    $el: '#id',
+    template: $("#tpl").html()
+  })
+  // 更新数据
+  model.set('title', '更新title',  true);
  
 </script>
 </html>
