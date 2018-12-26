@@ -12,31 +12,251 @@
     };
   };
 
-  // underscore template source
+  // trim方法兼容
+  String.prototype.trim = String.prototype.trim || function() {
+    return this.replace(/^\s+/, '').replace(/\s+$/, '')
+  }
+
+  // ie8不支持array indexof方法
+  if (!Array.prototype.indexOf){
+    Array.prototype.indexOf = function(elt /*, from*/){
+      var len = this.length >>> 0;
+  
+      var from = Number(arguments[1]) || 0;
+      from = (from < 0)
+           ? Math.ceil(from)
+           : Math.floor(from);
+      if (from < 0)
+        from += len;
+  
+      for (; from < len; from++){
+        if (from in this && this[from] === elt)
+          return from;
+      }
+      return -1;
+    };
+  }
+
+  //////////// virtual dom 关键代码 /////////////////
+  var REPLACE = 'REPLACE';
+  var UPDATE = 'UPDATE';
+  var REMOVE = 'REMOVE';
+  var CREATE = 'CREATE';
+  var CREATE_ATTR = 'CREATE_ATTR';
+  var REMOVE_ATTR = 'REMOVE_ATTR';
+  var TEXT = 'TEXT';
+
+  // vnode.js
+  var VNode = function(tagName, attrs, children) {
+      this.tagName = tagName;
+      this.attrs = attrs;
+      this.children = children;
+  }
+
+  /* h.js
+  *创建虚拟DOM，如果是text则直接返回text
+  */
+  function h(tagName, text, children, attrs) {
+      if(tagName === TEXT) {
+          return text
+      }
+      var node = new VNode(tagName, attrs, children);
+      return node;
+  }
+
+  // render.js
+  function setAttribute(el, key, value) {
+      el.setAttribute(key, value);
+  }
+
+  function setAttributes(el, attributes) {
+      for(var key in attributes) {
+          setAttribute(el, key, attributes[key]);
+      }
+  }
+
+  function createElement(vnode) {
+      var el = null;
+      // 文本元素
+      if(typeof vnode === "string") {
+          el = document.createTextNode(vnode);
+          return el;
+      }
+
+      el = document.createElement(vnode.tagName);
+      setAttributes(el, vnode.attrs);
+      vnode.children.map(createElement).forEach(function(child) {
+          el.appendChild(child);
+      });
+      return el;
+  }
+
+  // diff.js
+  var isNull = function(node) {return !node} 
+
+  var diffChildren = function(newVnode, oldVnode) {
+      var pathces = [];
+      if(typeof newVnode === 'string') {
+          return null;
+      }
+      var newChildren = newVnode.children;
+      var oldChildren = oldVnode.children;
+      var len = Math.max(newChildren.length, oldChildren.length);
+      for(var i = 0; i < len; i++) {
+          pathces[i] = diff(newChildren[i], oldChildren[i]);
+      }
+      return pathces;
+  }
+
+  var diffAttrs = function(newVnode, oldVnode) {
+      var pathces = [];
+      var newAttrs = newVnode.attrs;
+      var oldAttrs = oldVnode.attrs;
+      var attrs = Object.assign({}, oldAttrs, newAttrs);
+      for(var key in attrs) {
+          if(newAttrs[key] !== oldAttrs[key]) {
+              // 新加属性
+              pathces.push({
+                  type: CREATE_ATTR,
+                  key: key,
+                  value: attrs[key]
+              })
+          } else if(!newAttrs[key]) {
+              // 删除属性
+              pathces.push({
+                  type: REMOVE_ATTR,
+                  key: key
+              })
+          }
+      }
+      return pathces;
+  }
+
+  var isDiffNode = function(newVnode, oldVnode) {
+      return (typeof newVnode === 'string' && newVnode !== oldVnode) || 
+          (typeof oldVnode === 'string' && newVnode !== oldVnode) ||
+          newVnode.tagName !== oldVnode.tagName
+  }
+
+  function diff(newVnode, oldVnode) {
+      // 新建
+      if(isNull(oldVnode)) {
+          return {
+              type: CREATE,
+              newVnode: newVnode
+          };
+      }
+      // 删除
+      if(isNull(newVnode)) {
+          return {
+              type: REMOVE
+          };
+      }
+      // 替换
+      if(isDiffNode(newVnode, oldVnode)) {
+          return {
+              type: REPLACE,
+              newVnode: newVnode
+          }
+      }
+      // 更新(text的情况下没有attr和children的)
+      if(newVnode.tagName) {
+          return {
+              type: UPDATE,
+              attrs: diffAttrs(newVnode, oldVnode),
+              children: diffChildren(newVnode, oldVnode)
+          }
+      }
+  }
+
+  // patch.js
+  function patchAttrs(el, patchs) {
+      for(var i in patchs) {
+        var patch = patchs[i];
+        if(patch.type === REMOVE_ATTR) {
+            el.removeAttribute(patch.key);
+        } else if(patch.type === CREATE_ATTR) {
+            el.setAttribute(patch.key, patch.value);
+        }
+      }
+  }
+
+  function patch(parent, patches, index) {
+      parent = typeof parent === 'string' ? document.querySelector(parent) : parent;
+
+      var el = null;
+      // index没有值的时候，是最开始的入口，这个时候获取的最原始的DOM，不能用childNodes（childNodes有text节点）
+      if(index === undefined) {
+          el = parent.children[0];
+      } else {
+          el = parent.childNodes[index];
+      }
+
+      if (!patches) {
+          return
+      }
+
+      switch(patches && patches.type) {
+          case REMOVE: {
+              parent.removeChild(el);
+              break;
+          }
+          case CREATE: {
+              parent.appendChild(createElement(patches.newVnode));
+              break;
+          }
+          case REPLACE: {
+              parent.replaceChild(createElement(patches.newVnode), el);
+              break;
+          }
+          case UPDATE: {
+              var attrs = patches.attrs,
+                children = patches.children;
+              patchAttrs(el, attrs);
+              for (var i = 0, len = children.length; i < len; i++) {
+                // children[i] && el
+                if(children[i]) {
+                  patch(el, children[i], i);
+                  // 如果是remove掉原来的子元素，则需要减1，不然会找不到childNodes
+                  if(children[i] && children[i].type === REMOVE) {
+                    len--;
+                    i--;
+                  }
+                }
+              }
+              break;
+          }
+              
+      }
+  }
+
+  function createVnode(el) {
+    el = typeof el === 'string' ? document.querySelector(el) : el;
+    var attrs = {}, c = [];
+    // nodeType为3则是文本类型和注释类型
+    if(el.nodeType !== 3 && el.nodeType !== 8) {
+        var keys = el.getAttributeNames();
+        for(var i = 0; i < keys.length; i++) {
+          var key = keys[i];
+          attrs[key] = el.getAttribute(key);
+        }
+        var children = el.childNodes;
+        for(var i = 0; i < children.length; i++) {
+            var child = children[i];
+            c[i] = createVnode(child);
+        }
+        return h(el.tagName, null, c, attrs);
+    } else {
+        return h(TEXT, el.textContent || el.innerText, c, attrs);
+    }
+  }
+
+  //////////////////// underscore template 基本代码 //////////////////
   var root = this;
   var breaker = {};
   var ArrayProto = Array.prototype, ObjProto = Object.prototype, FuncProto = Function.prototype;
-
-  var
-    push = ArrayProto.push,
-    slice = ArrayProto.slice,
-    concat = ArrayProto.concat,
-    toString = ObjProto.toString,
-    hasOwnProperty = ObjProto.hasOwnProperty;
-
-  var
-    nativeForEach = ArrayProto.forEach,
-    nativeMap = ArrayProto.map,
-    nativeReduce = ArrayProto.reduce,
-    nativeReduceRight = ArrayProto.reduceRight,
-    nativeFilter = ArrayProto.filter,
-    nativeEvery = ArrayProto.every,
-    nativeSome = ArrayProto.some,
-    nativeIndexOf = ArrayProto.indexOf,
-    nativeLastIndexOf = ArrayProto.lastIndexOf,
-    nativeIsArray = Array.isArray,
-    nativeKeys = Object.keys,
-    nativeBind = FuncProto.bind;
+  var slice = ArrayProto.slice;
+  var nativeForEach = ArrayProto.forEach;
 
   var _ = function (obj) {
     if (obj instanceof _) return obj;
@@ -396,9 +616,9 @@
           if (deep && copy && (XL.isPlainObject(copy) || (copyIsArray = XL.isArray(copy)))) {
             if (copyIsArray) {    // 被拷贝的属性值是个数组
               copyIsArray = false;
-              clone = src && XL.isArray(src) ? src : [];
+              clone = []; // src && XL.isArray(src) ? src : [];
             } else {    //被拷贝的属性值是个plainObject
-              clone = src && XL.isPlainObject(src) ? src : {};
+              clone = {}; // src && XL.isPlainObject(src) ? src : {};
             }
             target[name] = XL._extend(clone, copy, deep);  // 递归
           } else if (copy !== undefined) {  // 浅拷贝，且属性值不为undefined
@@ -501,7 +721,7 @@
     this.cancelBtn = defaultOption.cancelBtn.replace(/\./, "");
     this.handleCancel = defaultOption.handleCancel;
     this.handleOk = defaultOption.handleOk;
-    this.eventHandler = null;
+    this.eventHandler = null; // modal点击事件的处理函数，需要保存起来，以便remove掉事件
    
     // 自定义show和hide
     defaultOption.hide && (this.hide = defaultOption.hide);
@@ -601,14 +821,17 @@
         if(this.$model.status === FULFILLED) {
           // 保存template
           if(!this._template) {
-            this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+            this._template = el.querySelector(".pop-template").innerHTML;
           }
-          var view = XV.create({
-            $el: el.querySelector(".pop-container"),
-            template:  this._template,
-            $model: this.$model
-          })
-          view.render();
+          if(!this.$view) {
+            this.$view = XV.create({
+              $el: el.querySelector(".pop-container"),
+              template:  this._template,
+              $model: this.$model
+            });
+          }
+          this.$view.render();
+          
           show.bind(this)();
         } else {
           // 如果model数据还未准备好，则先放入队列中
@@ -625,12 +848,14 @@
     if(!this._template) {
       this._template = el.querySelector(".pop-template").innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     }
-    var view = XV.create({
-      $el: el.querySelector(".pop-container"),
-      template:  this._template,
-      $model: this.$model
-    })
-    view.render();
+    if(!this.$view) {
+      this.$view = XV.create({
+        $el: el.querySelector(".pop-container"),
+        template:  this._template,
+        $model: this.$model
+      });
+    }
+    this.$view.render();
   }
 
   XL.toast = function(option) {
@@ -734,6 +959,8 @@
           _this._setData(attr, value, ifRender);
         });
       },
+      // 是否创建的时候就拉取数据，如果设置为true，需要用户手动调用fetchData方法拉取数据
+      lazy: false, 
       _setData: function(attr, value, ifRender){
         var preData = JSON.stringify(this._data);
         // set的是整个对象
@@ -1055,13 +1282,13 @@
         XEvent.on(this.$model.id + ":" + eventName, fn.bind(instance));
       },
       _beforeRender: function() {
-        this.$model._data.status = this.$model.status;
-        var html = this._getTemplate(this.$model._data);
-        if(XL.isDOM(this.$el)) {
-          this.$el.innerHTML = html;
-        } else {
-          document.querySelector(this.$el).innerHTML = html;
-        }
+        // this.$model._data.status = this.$model.status;
+        // var html = this._getTemplate(this.$model._data);
+        // if(XL.isDOM(this.$el)) {
+        //   this.$el.innerHTML = html;
+        // } else {
+        //   document.querySelector(this.$el).innerHTML = html;
+        // }
         // $(this.$el).html(html);
       },
       /**
@@ -1070,7 +1297,7 @@
       render: function () {
         var _this = this;
         var model = this.$model;
-        _this._beforeRender();
+        // _this._beforeRender();
         // 无需从后台拉取数据的时候
         if(model.status === FULFILLED) {
           model._data.status = model.status;
@@ -1102,6 +1329,58 @@
         } else {
           return this.template(data);
         }
+      },
+      _initListener: function(relisten) {
+        relisten = relisten || false;
+        var events = this.events;
+        if (events && XL.isPlainObject(events)) {
+          var cannotBubbleTypes = ['blur', 'focus'];
+          _.each(events, function(callback, event_element) {
+            var type = event_element.split(/\s+/)[0].split(/:/).join(" ");
+            var selector = event_element.split(/\s+/)[1] || instance.$el;
+            if(!instance[callback]) {
+              throw new Error("there is no method called " + callback);
+              return;
+            }
+            // 无法冒泡的事件
+            if(cannotBubbleTypes.indexOf(type) > -1) {
+              setTimeout(function() {
+                XL.EventUtil.on(document.querySelector(selector), type, function(evt) {
+                  var target = XL.EventUtil.getTarget(evt);
+                  var event = {
+                    currentTarget: target,
+                    target: evt.currentTarget
+                  }
+                  instance[callback](event);
+                })
+              }, 0);
+              return;
+            }
+            // 冒泡监听的不需要重新监听
+            if(relisten) return;
+            // 监听事件，冒泡的方式
+            XL.EventUtil.on(document.querySelector(obj.$el), type, function(evt) {
+              var target = XL.EventUtil.getTarget(evt);
+              var allEl = document.querySelectorAll(selector);
+              var isContains = false, i = 0;
+              for(; i < allEl.length; i++) {
+                if(allEl[i] === target || allEl[i].contains(target)) {
+                  isContains = true;
+                  break;
+                }
+              }
+              if(isContains) {
+                var event = {
+                  currentTarget: target,
+                  target: evt.currentTarget
+                }
+                instance[callback](event, i >= 0 ? i : void 0);
+              }
+              
+            });
+            // $("body").on(type, selector, instance[callback].bind(instance));
+          })
+        }
       }
     };
 
@@ -1124,53 +1403,9 @@
     }
 
     // events
-    var events = obj.events;
-    if (events && XL.isPlainObject(events)) {
-      var cannotBubbleTypes = ['blur', 'focus'];
-      _.each(events, function(callback, event_element) {
-        var type = event_element.split(/\s+/)[0].split(/:/).join(" ");
-        var selector = event_element.split(/\s+/)[1] || instance.$el;
-        if(!instance[callback]) {
-          throw new Error("there is no method called " + callback);
-          return;
-        }
-        // 无法冒泡的事件
-        if(cannotBubbleTypes.indexOf(type) > -1) {
-          setTimeout(() => {
-            XL.EventUtil.on(document.querySelector(selector), type, function(evt) {
-              var event = {
-                currentTarget: target,
-                target: evt.currentTarget
-              }
-              instance[callback](event, i >= 0 ? i : void 0);
-            })
-          }, 0);
-          return;
-        }
-        // 监听事件，冒泡的方式
-        XL.EventUtil.on(document.querySelector(obj.$el), type, function(evt) {
-          var target = XL.EventUtil.getTarget(evt);
-          var allEl = document.querySelectorAll(selector);
-          var isContains = false, i = 0;
-          for(; i < allEl.length; i++) {
-            if(allEl[i] === target || allEl[i].contains(target)) {
-              isContains = true;
-              break;
-            }
-          }
-          if(isContains) {
-            var event = {
-              currentTarget: target,
-              target: evt.currentTarget
-            }
-            instance[callback](event, i >= 0 ? i : void 0);
-          }
-          
-        });
-        // $("body").on(type, selector, instance[callback].bind(instance));
-      })
-    }
-
+    instance.events = obj.events;
+    instance._initListener();
+    
     // template
     if (!obj.template) {
       throw new Error("template attribute is required");
@@ -1185,11 +1420,26 @@
         this.beforeRender && this.beforeRender()
         var model = this.$model._data;
         var html = this._getTemplate(model);
-        if(XL.isDOM(this.$el)) {
-          this.$el.innerHTML = html;
-        } else {
-          document.querySelector(this.$el).innerHTML = html;
+        if(this._vnode) {
+          // 之前渲染过，使用diff算法来更新
+          var el = document.createElement("div");
+          el.innerHTML = html;
+          var newVnode = createVnode(el);
+          patch(this.$el, diff(newVnode, this._vnode));
+          this._vnode = newVnode;
+        }  else {
+          // 第一次渲染，为了创建虚拟DOM需要用div包起来
+          var el = document.createElement("div");
+          el.innerHTML = html;
+          this._vnode = createVnode(el);
+
+          if(XL.isDOM(this.$el)) {
+            this.$el.appendChild(el);
+          } else {
+            document.querySelector(this.$el).appendChild(el);
+          }
         }
+        this._initListener(true);
         // $(this.$el).html(html);
         // 调用redered 生命函数
         this.rendered && this.rendered();
