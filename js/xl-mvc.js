@@ -235,10 +235,10 @@
     var attrs = {}, c = [];
     // nodeType为3则是文本类型和注释类型
     if(el.nodeType !== 3 && el.nodeType !== 8) {
-        var keys = el.getAttributeNames();
-        for(var i = 0; i < keys.length; i++) {
-          var key = keys[i];
-          attrs[key] = el.getAttribute(key);
+        var attributes = el.attributes;
+        for(var i = 0; i < attributes.length; i++) {
+          var attr = attributes[i];
+          attrs[attr.nodeName] = attr.nodeValue;
         }
         var children = el.childNodes;
         for(var i = 0; i < children.length; i++) {
@@ -254,9 +254,18 @@
   //////////////////// underscore template 基本代码 //////////////////
   var root = this;
   var breaker = {};
-  var ArrayProto = Array.prototype, ObjProto = Object.prototype, FuncProto = Function.prototype;
+  var ArrayProto = Array.prototype;
   var slice = ArrayProto.slice;
   var nativeForEach = ArrayProto.forEach;
+
+  var escapeMap = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '`': '&#x60;'
+  };
 
   var _ = function (obj) {
     if (obj instanceof _) return obj;
@@ -275,6 +284,19 @@
       }
     }
     return keys;
+  }
+
+  _.escape = function(string) {
+    var escaper = function(match) {
+        return escapeMap[match];
+    };
+    // 使用非捕获性分组
+    var source = '(?:' + Object.keys(escapeMap).join('|') + ')';
+    var testRegexp = RegExp(source);
+    var replaceRegexp = RegExp(source, 'g');
+
+    string = string == null ? '' : '' + string;
+    return testRegexp.test(string) ? string.replace(replaceRegexp, escaper) : string;
   }
 
   var each = _.each = _.forEach = function (obj, iterator, context) {
