@@ -191,37 +191,37 @@
     var el = null;
     // index没有值的时候，是最开始的入口，这个时候获取的最原始的DOM，不能用childNodes（childNodes有text节点）
     if(index === undefined) {
-        el = parent.children[0];
+      el = parent.children[0];
     } else {
-        el = parent.childNodes[index];
+      el = parent.childNodes[index];
     }
 
     switch(patches && patches.type) {
         case REMOVE: {
-            parent.removeChild(el);
-            break;
+          parent.removeChild(el);
+          break;
         }
         case CREATE: {
-            parent.appendChild(createElement(patches.newVnode));
-            break;
+          parent.appendChild(createElement(patches.newVnode));
+          break;
         }
         case REPLACE: {
-            parent.replaceChild(createElement(patches.newVnode), el);
-            break;
+          parent.replaceChild(createElement(patches.newVnode), el);
+          break;
         }
         case UPDATE: {
-            var attrs = patches.attrs,
-              children = patches.children;
-            patchAttrs(el, attrs);
-            for (var i = 0, len = children.length; i < len; i++) {
-              patch(el, children[i], i);
-              // 如果是remove掉原来的子元素，则需要减1，不然会找不到childNodes
-              if(children[i] && children[i].type === REMOVE) {
-                len--;
-                i--;
-              }
+          var attrs = patches.attrs,
+            children = patches.children;
+          patchAttrs(el, attrs);
+          for (var i = 0, len = children.length; i < len; i++) {
+            patch(el, children[i], i);
+            // 如果是remove掉原来的子元素，则需要减1，不然会找不到childNodes
+            if(children[i] && children[i].type === REMOVE) {
+              len--;
+              i--;
             }
-            break;
+          }
+          break;
         }
             
     }
